@@ -16,8 +16,7 @@ jobs:
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_KEY }}
           script: |
-            echo "whoami: $(whoami)"
-            cd /home/ec2-user/interal-ai-assistant
+            cd ~/interal-ai-assistant
             git pull origin main
             pkill uvicorn
             nohup uvicorn src.main:app --host 0.0.0.0 --port 8000 &
