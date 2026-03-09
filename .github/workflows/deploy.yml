@@ -18,5 +18,6 @@ jobs:
           script: |
             cd ~/internal-ai-assistant
             git pull origin main
-            pkill uvicorn
-            nohup uvicorn src.main:app --host 0.0.0.0 --port 8000 &
+            pkill uvicorn || true
+            nohup uvicorn src.main:app --host 0.0.0.0 --port 8000 > ~/uvicorn.log 2>&1 &
+            disown
