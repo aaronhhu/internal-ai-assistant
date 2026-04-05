@@ -5,10 +5,39 @@ on:
     branches:
       - main
 
+env:
+  IMAGE_NAME: ghcr.io/${{ github.repository_owner }}/internal-ai-assistant
+
 jobs:
-  deploy:
+  test:
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
+
+      - name: Build image
+        run: docker build -t $IMAGE_NAME:test .
+
+      - name: Run tests inside container
+        run: |
+          docker run --rm \
+            -v ${{ github.workspace }}/test:/app/test \
+            $IMAGE_NAME:test \
+            python -m pytest test/ -v
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to GitHub Container Registry
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+
+      - name: Build and push image
+        run: |
+          docker build -t $IMAGE_NAME:latest .
+          docker push $IMAGE_NAME:latest
+
       - name: SSH into EC2 and deploy
         uses: appleboy/ssh-action@master
         with:
@@ -16,8 +45,12 @@ jobs:
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_KEY }}
           script: |
-            cd ~/internal-ai-assistant
-            git pull origin main
-            pkill uvicorn || true
-            nohup uvicorn src.main:app --host 0.0.0.0 --port 8000 > ~/uvicorn.log 2>&1 &
-            disown
+            echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+            docker pull ghcr.io/${{ github.repository_owner }}/internal-ai-assistant:latest
+            docker stop internal-ai-assistant || true
+            docker rm internal-ai-assistant || true
+            docker run -d \
+              --name internal-ai-assistant \
+              --restart unless-stopped \
+              -p 8000:8000 \
+              ghcr.io/${{ github.repository_owner }}/internal-ai-assistant:latest
