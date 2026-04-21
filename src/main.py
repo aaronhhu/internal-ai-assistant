@@ -4,6 +4,7 @@ from google.genai import types
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+from database import init_db, get_history, save_message, clear_history, get_sessions
 
 app = FastAPI()
 
@@ -14,6 +15,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+init_db()
 
 SYSTEM_PROMPT = """You are a friendly and patient tutor assistant. Your goals are:
 - Help users learn and understand concepts clearly, across any subject
@@ -29,9 +32,6 @@ HARMFUL_KEYWORDS = [
     "how to make a bomb", "how to make explosives", "how to hurt", "how to kill",
     "self harm", "suicide method", "how to hack", "how to steal",
 ]
-
-# In-memory chat history store: { session_id: [{"role": ..., "parts": [...]}, ...] }
-session_histories: dict[str, list] = {}
 
 
 class MessageRequest(BaseModel):
@@ -59,13 +59,10 @@ async def ask_ai(session_id: str, body: MessageRequest):
     if is_harmful(user_message):
         raise HTTPException(status_code=400, detail="Message flagged as harmful content.")
 
-    # Extract user context (chat history for this session)
-    if session_id not in session_histories:
-        session_histories[session_id] = []
+    # Load chat history from database
+    history = get_history(session_id)
 
-    history = session_histories[session_id]
-
-    # Append user message to history
+    # Append user message to history for this request
     history.append({"role": "user", "parts": [{"text": user_message}]})
 
     # Call Gemini with system prompt + full chat history
@@ -80,13 +77,25 @@ async def ask_ai(session_id: str, body: MessageRequest):
 
     assistant_message = response.text
 
-    # Append assistant response to history
-    history.append({"role": "model", "parts": [{"text": assistant_message}]})
+    # Persist both messages to the database
+    save_message(session_id, "user", user_message)
+    save_message(session_id, "model", assistant_message)
 
     return {"response": assistant_message}
 
 
+@app.get("/app/{session_id}/history")
+def get_session_history(session_id: str):
+    rows = get_history(session_id)
+    return [{"role": m["role"], "content": m["parts"][0]["text"]} for m in rows]
+
+
+@app.get("/sessions")
+def list_sessions():
+    return get_sessions()
+
+
 @app.delete("/app/{session_id}")
 def clear_session(session_id: str):
-    session_histories.pop(session_id, None)
+    clear_history(session_id)
     return {"message": f"Session {session_id} cleared."}

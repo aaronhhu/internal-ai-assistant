@@ -3,3 +3,4 @@ fastapi
 pytest
 httpx
 google-genai
+sqlalchemy
