@@ -53,4 +53,5 @@ jobs:
               --name internal-ai-assistant \
               --restart unless-stopped \
               -p 8000:8000 \
+              -e GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }} \
               ghcr.io/${{ github.repository_owner }}/internal-ai-assistant:latest
