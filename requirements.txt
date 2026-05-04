@@ -4,3 +4,4 @@ pytest
 httpx
 google-genai
 sqlalchemy
+python-dotenv
