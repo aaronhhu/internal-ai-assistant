@@ -4,7 +4,7 @@ from google.genai import types
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from database import init_db, get_history, save_message, clear_history, get_sessions
+from src.database import init_db, get_history, save_message, clear_history, get_sessions
 from dotenv import load_dotenv
 
 load_dotenv()
